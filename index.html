@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Análisis Inmobiliario — Belgrano & Núñez CABA</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #1A2C42; color: #fff; height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Header ── */
+    header {
+      background: #1A2C42;
+      border-bottom: 3px solid #C9A84C;
+      padding: 10px 18px;
+      display: flex; align-items: center; gap: 14px;
+      flex-shrink: 0;
+    }
+    header .logo { font-size: 22px; }
+    header h1 { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
+    header p  { font-size: 11px; color: #8BACC8; margin-top: 1px; }
+    header .badge {
+      margin-left: auto; background: #C9A84C; color: #0D1B2A;
+      font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 20px;
+    }
+
+    /* ── Layout ── */
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Map ── */
+    #map { flex: 1; z-index: 1; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 300px; background: #F4F6F9; overflow-y: auto;
+      border-left: 2px solid #D1D9E6; flex-shrink: 0;
+      display: flex; flex-direction: column;
+    }
+    .sidebar-section { padding: 12px 14px 6px; }
+    .sidebar-title {
+      font-size: 10px; font-weight: 700; color: #1A2C42;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      padding-bottom: 6px; border-bottom: 1px solid #D1D9E6;
+      margin-bottom: 8px;
+    }
+
+    /* ── Location cards ── */
+    .loc-card {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 10px; border-radius: 8px; cursor: pointer;
+      transition: background 0.15s;
+      margin-bottom: 4px;
+    }
+    .loc-card:hover { background: #E2E8F4; }
+    .loc-card.active { background: #E2E8F4; border-left: 3px solid #C9A84C; }
+    .loc-badge {
+      min-width: 26px; height: 26px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;
+    }
+    .loc-info h3 { font-size: 12px; font-weight: 600; color: #1A2C42; line-height: 1.3; }
+    .loc-info p  { font-size: 10px; color: #5A7090; margin-top: 2px; }
+    .loc-stars   { font-size: 10px; color: #C9A84C; }
+
+    /* ── Subte cards ── */
+    .subte-card {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 10px; border-radius: 8px; cursor: pointer;
+      transition: background 0.15s; margin-bottom: 4px;
+    }
+    .subte-card:hover { background: #E2E8F4; }
+    .subte-dot {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: #2E9E4F; border: 2px solid #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 800; color: #fff; flex-shrink: 0;
+    }
+    .subte-info h3 { font-size: 12px; font-weight: 600; color: #1A2C42; }
+    .subte-info p  { font-size: 10px; color: #5A7090; }
+
+    /* ── Legend ── */
+    .legend { padding: 10px 14px; border-top: 1px solid #D1D9E6; margin-top: auto; background: #F4F6F9; }
+    .legend-title { font-size: 9px; font-weight: 700; color: #5A7090; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+    .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 11px; color: #1A2C42; }
+    .legend-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(0,0,0,0.15); flex-shrink: 0; }
+    .legend-line { width: 20px; height: 4px; border-radius: 2px; flex-shrink: 0; }
+
+    /* ── Custom popup ── */
+    .leaflet-popup-content-wrapper {
+      background: #ffffff; border: 2px solid #C9A84C;
+      border-radius: 10px; color: #1A2C42; font-family: 'Segoe UI', Arial, sans-serif;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+    }
+    .leaflet-popup-tip { background: #C9A84C; }
+    .leaflet-popup-content { margin: 0; padding: 0; }
+    .popup-body { padding: 14px 16px; min-width: 210px; }
+    .popup-body .p-num { font-size: 10px; color: #5A7090; }
+    .popup-body .p-title { font-size: 14px; font-weight: 700; color: #1A2C42; margin: 2px 0 4px; }
+    .popup-body .p-barrio { font-size: 11px; color: #C9A84C; font-style: italic; font-weight: 600; }
+    .popup-body .p-divider { border: none; border-top: 1px solid #E2E8F4; margin: 8px 0; }
+    .popup-body .p-row { display: flex; justify-content: space-between; font-size: 11px; margin: 3px 0; }
+    .popup-body .p-row span:first-child { color: #5A7090; }
+    .popup-body .p-row span:last-child  { color: #1A2C42; font-weight: 600; }
+    .popup-body .p-stars { font-size: 13px; color: #C9A84C; margin-top: 6px; }
+    .popup-body .p-rank-label { font-size: 10px; color: #5A7090; }
+
+    .popup-subte { padding: 12px 16px; min-width: 180px; }
+    .popup-subte .s-line { font-size: 10px; color: #2E9E4F; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+    .popup-subte .s-name { font-size: 14px; font-weight: 700; color: #1A2C42; margin: 2px 0 4px; }
+    .popup-subte .s-info { font-size: 11px; color: #5A7090; margin: 2px 0; }
+    .leaflet-popup-close-button { color: #5A7090 !important; font-size: 16px !important; top: 6px !important; right: 8px !important; }
+
+    /* ── Controls ── */
+    .filter-row { display: flex; gap: 6px; padding: 0 14px 10px; flex-wrap: wrap; }
+    .filter-btn {
+      font-size: 10px; font-weight: 600; padding: 4px 10px; border-radius: 20px;
+      border: 1px solid #C0CCE0; background: #fff; color: #5A7090;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .filter-btn:hover, .filter-btn.on { background: #C9A84C; color: #0D1B2A; border-color: #C9A84C; }
+
+    @media (max-width: 640px) {
+      .sidebar { width: 100%; height: 220px; border-left: none; border-top: 2px solid #D1D9E6; overflow-x: auto; }
+      .main { flex-direction: column; }
+      .sidebar-section, .filter-row { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🏢</div>
+  <div>
+    <h1>ANÁLISIS INMOBILIARIO — BELGRANO &amp; NÚÑEZ</h1>
+    <p>Ciudad Autónoma de Buenos Aires · Mayo 2026 · Uso interno confidencial</p>
+  </div>
+  <span class="badge">9 UBICACIONES</span>
+</header>
+
+<div class="main">
+  <div id="map"></div>
+
+  <aside class="sidebar">
+
+    <!-- Filter -->
+    <div class="sidebar-section">
+      <div class="sidebar-title">Filtrar por zona</div>
+      <div class="filter-row">
+        <button class="filter-btn on" id="btn-all"   onclick="filterLocs('all')">Todas</button>
+        <button class="filter-btn"    id="btn-belgc" onclick="filterLocs('belgc')">Belgrano C</button>
+        <button class="filter-btn"    id="btn-borde" onclick="filterLocs('borde')">Borde</button>
+        <button class="filter-btn"    id="btn-nunez" onclick="filterLocs('nunez')">Núñez</button>
+      </div>
+    </div>
+
+    <!-- Locations -->
+    <div class="sidebar-section" style="padding-top:4px;">
+      <div class="sidebar-title">Ubicaciones candidatas</div>
+      <div id="loc-list"></div>
+    </div>
+
+    <!-- Subte -->
+    <div class="sidebar-section">
+      <div class="sidebar-title">🚇 Línea D — Estaciones cercanas</div>
+      <div id="subte-list"></div>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend">
+      <div class="legend-title">Referencias</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#C9A84C"></div> Belgrano C (top)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#E88C2A"></div> Borde Belgrano/Núñez</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#2E7FB0"></div> Núñez interior</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#6B8CA8"></div> Núñez norte</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#2E9E4F; border-color:#fff"></div> Estación Subte Línea D</div>
+      <div class="legend-item"><div class="legend-line" style="background:#2E9E4F"></div> Recorrido Línea D</div>
+      <div class="legend-item"><div class="legend-line" style="background:#1A2C42"></div> Av. Cabildo / Del Libertador</div>
+    </div>
+  </aside>
+</div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────
+const LOCATIONS = [
+  {
+    id: 1, label: "Vidal 2039", barrio: "Belgrano C", zone: "belgc",
+    lat: -34.5647, lon: -58.4598, color: "#C9A84C", stars: "★★★★★",
+    ranking: "1° — Mejor ubicación", catA: "3.800 – 5.300", catB: "3.300 – 4.700",
+    subte: "✅ Muy cerca", tranq: "✅ Alta", conflic: "✅ Ninguno"
+  },
+  {
+    id: 2, label: "Juana Azurduy 2334", barrio: "Borde Belgrano/Núñez", zone: "borde",
+    lat: -34.5502, lon: -58.4662, color: "#E88C2A", stars: "★★★★",
+    ranking: "2° — Zona en crecimiento", catA: "3.400 – 4.700", catB: "2.900 – 4.100",
+    subte: "🟡 Moderado", tranq: "🟡 Media", conflic: "✅ Ninguno"
+  },
+  {
+    id: 3, label: "V. Obligado 3500", barrio: "Borde Belgrano/Núñez", zone: "borde",
+    lat: -34.5491, lon: -58.4666, color: "#E88C2A", stars: "★★★½",
+    ranking: "3° — Buena relación riesgo/retorno", catA: "3.200 – 4.400", catB: "2.750 – 3.900",
+    subte: "🟡 Moderado", tranq: "✅ Alta", conflic: "✅ Ninguno"
+  },
+  {
+    id: 4, label: "Cabildo 4402", barrio: "Núñez (sobre Av.)", zone: "nunez",
+    lat: -34.5438, lon: -58.4726, color: "#2E7FB0", stars: "★★★",
+    ranking: "4° — Alta exposición comercial", catA: "3.300 – 4.500", catB: "2.800 – 4.000",
+    subte: "❌ Lejos", tranq: "❌ Ruido av.", conflic: "✅ Ninguno"
+  },
+  {
+    id: 5, label: "Cabildo 4625", barrio: "Núñez (sobre Av.)", zone: "nunez",
+    lat: -34.5419, lon: -58.4731, color: "#2E7FB0", stars: "★★★",
+    ranking: "5° — Alta exposición, periferia norte", catA: "3.100 – 4.300", catB: "2.650 – 3.800",
+    subte: "❌ Lejos", tranq: "❌ Ruido av.", conflic: "✅ Ninguno"
+  },
+  {
+    id: 6, label: "Paroissien 1911", barrio: "Núñez interior", zone: "nunez",
+    lat: -34.5441, lon: -58.4653, color: "#2E7FB0", stars: "★★½",
+    ranking: "6° — Buena conectividad en tren", catA: "3.000 – 4.200", catB: "2.550 – 3.700",
+    subte: "❌ Lejos", tranq: "🟡 Media", conflic: "✅ Ninguno"
+  },
+  {
+    id: 7, label: "V. de Obligado 4500", barrio: "Núñez interior", zone: "nunez",
+    lat: -34.5417, lon: -58.4720, color: "#2E7FB0", stars: "★★½",
+    ranking: "7° — Tranquilo, sin subte cercano", catA: "2.900 – 4.100", catB: "2.450 – 3.600",
+    subte: "❌ Lejos", tranq: "✅ Alta", conflic: "✅ Ninguno"
+  },
+  {
+    id: 8, label: "V. de Obligado 4791", barrio: "Núñez norte", zone: "norte",
+    lat: -34.5395, lon: -58.4734, color: "#6B8CA8", stars: "★★",
+    ranking: "8° — Quieto, tierra más barata", catA: "2.800 – 4.000", catB: "2.350 – 3.400",
+    subte: "❌ Lejos", tranq: "✅ Alta", conflic: "✅ Ninguno"
+  },
+  {
+    id: 9, label: "Vedia 2324", barrio: "Núñez norte", zone: "norte",
+    lat: -34.5396, lon: -58.4740, color: "#6B8CA8", stars: "★★",
+    ranking: "9° — Margen más ajustado", catA: "2.700 – 3.900", catB: "2.250 – 3.300",
+    subte: "❌ Lejos", tranq: "✅ Alta", conflic: "✅ Ninguno"
+  },
+];
+
+// Línea D — todas las estaciones con coords
+// Línea D — coordenadas oficiales GCBA (data.buenosaires.gob.ar), orden Congreso de Tucumán → Catedral
+const SUBTE_D = [
+  { name: "Congreso de Tucumán", lat: -34.555642, lon: -58.462379, note: "Cabecera · Cabildo y Congreso" },
+  { name: "Juramento",           lat: -34.562310, lon: -58.456490, note: "Cabildo y Juramento" },
+  { name: "José Hernández",      lat: -34.566216, lon: -58.452127, note: "Cabildo y J. Hernández" },
+  { name: "Olleros",             lat: -34.570013, lon: -58.444670, note: "Av. Cabildo y Olleros" },
+  { name: "Ministro Carranza",   lat: -34.575178, lon: -58.435015, note: "Cabildo/Virrey del Pino · Combina Tren Mitre" },
+  { name: "Palermo",             lat: -34.578422, lon: -58.425714, note: "Santa Fe y Bullrich · cerca FCG San Martín" },
+  { name: "Plaza Italia",        lat: -34.581411, lon: -58.421198, note: "Av. Santa Fe y Sarmiento" },
+  { name: "R. Scalabrini Ortiz", lat: -34.585156, lon: -58.415958, note: "Av. Santa Fe y Scalabrini Ortiz" },
+  { name: "Bulnes",              lat: -34.588237, lon: -58.411297, note: "Av. Santa Fe y Bulnes" },
+  { name: "Pueyrredón",          lat: -34.594425, lon: -58.402398, note: "Av. Córdoba · Combina con Línea H" },
+  { name: "Facultad de Medicina",lat: -34.599756, lon: -58.397927, note: "Av. Córdoba y Puan" },
+  { name: "Callao",              lat: -34.599639, lon: -58.393129, note: "Av. Córdoba y Callao" },
+  { name: "Tribunales",          lat: -34.601586, lon: -58.385146, note: "Diagonal Norte y Libertad" },
+  { name: "9 de Julio",          lat: -34.604244, lon: -58.380578, note: "Diagonal Norte · Combina Líneas B y C" },
+  { name: "Catedral",            lat: -34.607801, lon: -58.373960, note: "Cabecera · Combina Líneas A y E" },
+];
+
+// Polyline: estaciones oficiales en orden, conectadas directamente
+const SUBTE_D_LINE = SUBTE_D.map(s => [s.lat, s.lon]);
+
+
+// ── Map init ──────────────────────────────────────────────────────────
+const map = L.map('map', {
+  center: [-34.554, -58.465],
+  zoom: 15,
+  zoomControl: true,
+});
+
+// Tile layer — light Carto (calles y tejido urbano visibles)
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+  maxZoom: 19,
+}).addTo(map);
+
+// ── Línea D track ──────────────────────────────────────────────────────
+L.polyline(SUBTE_D_LINE, {
+  color: '#2E9E4F', weight: 5, opacity: 0.75, dashArray: '8, 4'
+}).addTo(map);
+
+// ── Subte markers ─────────────────────────────────────────────────────
+const subteMarkers = {};
+const subteIconHtml = (name) => `
+  <div style="
+    background:#2E9E4F; border:2.5px solid #fff;
+    width:28px; height:28px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:800; color:#fff;
+    box-shadow:0 2px 8px rgba(0,0,0,0.5);
+  ">D</div>`;
+
+SUBTE_D.forEach((st, i) => {
+  const icon = L.divIcon({ html: subteIconHtml(st.name), className: '', iconSize: [28, 28], iconAnchor: [14, 14] });
+  const marker = L.marker([st.lat, st.lon], { icon })
+    .bindPopup(`
+      <div class="popup-subte">
+        <div class="s-line">🚇 Subte · Línea D</div>
+        <div class="s-name">${st.name}</div>
+        <div class="s-info">📍 ${st.note}</div>
+      </div>
+    `, { maxWidth: 220 })
+    .addTo(map);
+  subteMarkers[i] = marker;
+});
+
+// ── Location markers ──────────────────────────────────────────────────
+const locMarkers = {};
+const makeLocIcon = (num, color) => L.divIcon({
+  html: `<div style="
+    background:${color}; border:3px solid #fff;
+    width:34px; height:34px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:13px; font-weight:800; color:#fff;
+    box-shadow:0 3px 12px rgba(0,0,0,0.6);
+    cursor:pointer;
+  ">${num}</div>`,
+  className: '', iconSize: [34, 34], iconAnchor: [17, 17]
+});
+
+LOCATIONS.forEach(loc => {
+  const marker = L.marker([loc.lat, loc.lon], { icon: makeLocIcon(loc.id, loc.color) })
+    .bindPopup(`
+      <div class="popup-body">
+        <div class="p-num">UBICACIÓN #${loc.id}</div>
+        <div class="p-title">${loc.label}</div>
+        <div class="p-barrio">${loc.barrio}</div>
+        <hr class="p-divider" />
+        <div class="p-row"><span>Subte Línea D</span><span>${loc.subte}</span></div>
+        <div class="p-row"><span>Tranquilidad</span><span>${loc.tranq}</span></div>
+        <div class="p-row"><span>Conflictos</span><span>${loc.conflic}</span></div>
+        <hr class="p-divider" />
+        <div class="p-row"><span>Cat. A (pozo→ terminado)</span><span>USD ${loc.catA}</span></div>
+        <div class="p-row"><span>Cat. B+ (pozo→ terminado)</span><span>USD ${loc.catB}</span></div>
+        <hr class="p-divider" />
+        <div class="p-rank-label">Ranking general</div>
+        <div class="p-stars">${loc.stars}</div>
+        <div style="font-size:10px;color:#8A9BB0;margin-top:2px;">${loc.ranking}</div>
+      </div>
+    `, { maxWidth: 260 })
+    .addTo(map);
+  locMarkers[loc.id] = marker;
+});
+
+// ── Sidebar: render lists ─────────────────────────────────────────────
+const locList = document.getElementById('loc-list');
+LOCATIONS.forEach(loc => {
+  const el = document.createElement('div');
+  el.className = 'loc-card';
+  el.id = `card-${loc.id}`;
+  el.dataset.zone = loc.zone;
+  el.innerHTML = `
+    <div class="loc-badge" style="background:${loc.color}">${loc.id}</div>
+    <div class="loc-info">
+      <h3>${loc.label}</h3>
+      <p>${loc.barrio}</p>
+      <div class="loc-stars">${loc.stars}</div>
+    </div>`;
+  el.addEventListener('click', () => {
+    map.setView([loc.lat, loc.lon], 17);
+    locMarkers[loc.id].openPopup();
+    document.querySelectorAll('.loc-card').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+  });
+  locList.appendChild(el);
+});
+
+const subteList = document.getElementById('subte-list');
+// Only show top 3 nearest
+const nearSubtes = SUBTE_D.slice(0, 6);
+nearSubtes.forEach((st, i) => {
+  const el = document.createElement('div');
+  el.className = 'subte-card';
+  el.innerHTML = `
+    <div class="subte-dot">D</div>
+    <div class="subte-info">
+      <h3>${st.name}</h3>
+      <p>${st.note}</p>
+    </div>`;
+  el.addEventListener('click', () => {
+    map.setView([st.lat, st.lon], 16);
+    subteMarkers[i].openPopup();
+  });
+  subteList.appendChild(el);
+});
+
+// ── Filter logic ───────────────────────────────────────────────────────
+function filterLocs(zone) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('on'));
+  document.getElementById('btn-' + (zone === 'all' ? 'all' : zone === 'belgc' ? 'belgc' : zone === 'borde' ? 'borde' : 'nunez')).classList.add('on');
+
+  LOCATIONS.forEach(loc => {
+    const show = zone === 'all' || loc.zone === zone || (zone === 'nunez' && loc.zone === 'norte');
+    const card = document.getElementById(`card-${loc.id}`);
+    card.style.display = show ? 'flex' : 'none';
+    if (show) {
+      locMarkers[loc.id].addTo(map);
+    } else {
+      map.removeLayer(locMarkers[loc.id]);
+    }
+  });
+
+  if (zone !== 'all') {
+    const visible = LOCATIONS.filter(l => zone === 'all' || l.zone === zone || (zone === 'nunez' && l.zone === 'norte'));
+    if (visible.length) {
+      const bounds = L.latLngBounds(visible.map(l => [l.lat, l.lon]));
+      map.fitBounds(bounds, { padding: [60, 60] });
+    }
+  } else {
+    map.setView([-34.554, -58.465], 15);
+  }
+}
+
+// ── Fit all on load ────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  const allBounds = L.latLngBounds(LOCATIONS.map(l => [l.lat, l.lon]));
+  map.fitBounds(allBounds, { padding: [50, 50] });
+});
+</script>
+</body>
+</html>
